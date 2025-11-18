@@ -1,6 +1,123 @@
 // src/utils/multiplicativeElgamal.js
-import { modInverse, modPow } from "./rsa";
 
+// Safe modular reduction
+function mod(a, p) {
+  return ((a % p) + p) % p;
+}
+
+// Verbose fast exponentiation in ℤ_p
+function verboseModPow(base, exp, p) {
+  base = mod(base, p);
+  let steps = "";
+
+  steps += `   We compute ${base}^${exp} mod ${p} by successive squaring.\n`;
+  steps += `   Exponent ${exp} in binary is ${exp.toString(2)}.\n\n`;
+
+  // Precompute base^(1), base^(2), base^(4), ...
+  let powVals = [];
+  let currentPow = 1;
+  let currentVal = base;
+  powVals.push({ pow: currentPow, val: currentVal });
+
+  while (currentPow * 2 <= exp) {
+    currentVal = mod(currentVal * currentVal, p);
+    currentPow *= 2;
+    powVals.push({ pow: currentPow, val: currentVal });
+  }
+
+  steps += `   Powers by squaring:\n`;
+  powVals.forEach(({ pow, val }) => {
+    steps += `      ${base}^${pow} ≡ ${val} (mod ${p})\n`;
+  });
+  steps += "\n";
+
+  // Decompose exponent as sum of powers of 2
+  let remaining = exp;
+  let chosen = [];
+  for (let i = powVals.length - 1; i >= 0; i--) {
+    if (powVals[i].pow <= remaining) {
+      chosen.push(powVals[i]);
+      remaining -= powVals[i].pow;
+    }
+  }
+
+  steps += `   Decompose ${exp} as sum of powers of 2:\n`;
+  steps +=
+    "      " +
+    exp +
+    " = " +
+    chosen
+      .map(({ pow }) => pow)
+      .sort((a, b) => a - b)
+      .join(" + ") +
+    ".\n\n";
+
+  // Multiply the selected powers
+  let acc = 1;
+  steps += `   Now multiply the corresponding powers modulo ${p}:\n`;
+  chosen
+    .sort((a, b) => a.pow - b.pow)
+    .forEach(({ pow, val }) => {
+      const before = acc;
+      acc = mod(acc * val, p);
+      steps += `      (${before} · ${base}^${pow}) ≡ ${before} · ${val} ≡ ${acc} (mod ${p})\n`;
+    });
+
+  steps += `\n   Hence ${base}^${exp} ≡ ${acc} (mod ${p}).\n\n`;
+
+  return { result: acc, steps };
+}
+
+// Verbose modular inverse using extended Euclidean algorithm
+function verboseModInverse(a, p) {
+  let steps = "";
+  let r0 = p;
+  let r1 = a;
+  let s0 = 1, s1 = 0; // r_i = s_i·p + t_i·a
+  let t0 = 0, t1 = 1;
+
+  steps += `   We apply the extended Euclidean algorithm to p = ${p} and a = ${a}.\n`;
+  steps += `   We maintain rᵢ, sᵢ, tᵢ such that rᵢ = sᵢ·p + tᵢ·a.\n\n`;
+  steps += `   Initial values:\n`;
+  steps += `      r₀ = ${r0}, r₁ = ${r1}\n`;
+  steps += `      s₀ = ${s0}, t₀ = ${t0}   (r₀ = ${s0}·${p} + ${t0}·${a})\n`;
+  steps += `      s₁ = ${s1}, t₁ = ${t1}   (r₁ = ${s1}·${p} + ${t1}·${a})\n\n`;
+
+  let k = 1;
+  while (r1 !== 0) {
+    const q = Math.floor(r0 / r1);
+    const r2 = r0 - q * r1;
+    const s2 = s0 - q * s1;
+    const t2 = t0 - q * t1;
+
+    steps += `   Step ${k}:\n`;
+    steps += `      q${k} = ⌊r₍${k-1}⌋ / r₍${k}⌋⌋ = ⌊${r0} / ${r1}⌋ = ${q}\n`;
+    steps += `      r₂ = r₍${k-1}⌋ − q${k}·r₍${k}⌋ = ${r0} − ${q}·${r1} = ${r2}\n`;
+    steps += `      s₂ = s₍${k-1}⌋ − q${k}·s₍${k}⌋ = ${s0} − ${q}·${s1} = ${s2}\n`;
+    steps += `      t₂ = t₍${k-1}⌋ − q${k}·t₍${k}⌋ = ${t0} − ${q}·${t1} = ${t2}\n\n`;
+
+    r0 = r1; r1 = r2;
+    s0 = s1; s1 = s2;
+    t0 = t1; t1 = t2;
+    k++;
+  }
+
+  const g = r0;
+  steps += `   The last non-zero remainder is gcd(p, a) = ${g}.\n`;
+  steps += `   At this point we have r = ${g} = s·p + t·a with s = ${s0}, t = ${t0}.\n`;
+
+  if (g !== 1) {
+    steps += `   Since gcd(p, a) ≠ 1, there is no modular inverse of a modulo p.\n`;
+    throw new Error(`No inverse exists: gcd(${a}, ${p}) = ${g}`);
+  }
+
+  const inverse = mod(t0, p);
+  steps += `   Since 1 = ${s0}·${p} + ${t0}·${a}, we have a⁻¹ ≡ ${t0} ≡ ${inverse} (mod ${p}).\n\n`;
+
+  return { inverse, steps };
+}
+
+// === Version 1: original style (secret key only) ===
 export function solveMultiplicativeElgamal(p, g, h, c1, c2) {
   let explanation = "";
 
@@ -18,50 +135,40 @@ export function solveMultiplicativeElgamal(p, g, h, c1, c2) {
   const powers = [];
 
   for (let k = 1; k <= p - 1; k++) {
-    current = (current * g) % p;
+    current = mod(current * g, p);
     powers.push({ k, value: current });
-    if (current === (h % p + p) % p) {
+    explanation += `   g^${k} ≡ ${current} (mod ${p})`;
+    if (current === mod(h, p)) {
       x = k;
-      break;
+      explanation += `   ⇐ this equals h = ${h}, so x = ${k}.`;
     }
+    explanation += `\n`;
+    if (x !== -1) break;
   }
+  explanation += `\n`;
 
   if (x === -1) {
     throw new Error(`Could not find x such that gˣ ≡ h (mod p). Check inputs.`);
   }
 
-  explanation += `   Powers of g modulo p (up to the point we find h):\n`;
-  powers.forEach(({ k, value }) => {
-    explanation += `   g^${k} ≡ ${value} (mod ${p})\n`;
-    if (value === h % p) {
-      explanation += `   ⇒ For k = ${k}, g^${k} ≡ h = ${h} (mod ${p}), so the secret key is x = ${k}.\n`;
-    }
-  });
-  explanation += `\n`;
+  explanation += `2) Compute c₁ˣ modulo p using fast exponentiation.\n`;
+  const { result: c1PowX, steps: powSteps } = verboseModPow(c1, x, p);
+  explanation += powSteps;
 
-  // Compute c1^x mod p
-  const c1PowX = modPow(c1, x, p);
-  explanation += `2) Compute c₁ˣ modulo p.\n`;
-  explanation += `   c₁ˣ ≡ ${c1}^${x} mod ${p} = ${c1PowX}.\n\n`;
+  explanation += `3) Compute the inverse of c₁ˣ modulo p using the extended Euclidean algorithm.\n`;
+  const { inverse: inv, steps: invSteps } = verboseModInverse(c1PowX, p);
+  explanation += invSteps;
 
-  // Compute inverse of c1^x
-  const inv = modInverse(c1PowX, p);
-  explanation += `3) Compute the inverse of c₁ˣ modulo p by the extended Euclidean algorithm.\n`;
-  explanation += `   Let a = c₁ˣ = ${c1PowX}. We find a⁻¹ such that a·a⁻¹ ≡ 1 (mod ${p}).\n`;
-  explanation += `   The result is a⁻¹ ≡ ${inv} (mod ${p}).\n\n`;
-
-  // Recover m
-  let m = (c2 * inv) % p;
-  if (m < 0) m += p;
+  let m = mod(c2 * inv, p);
 
   explanation += `4) Recover the clear message m.\n`;
-  explanation += `   m ≡ c₂ · (c₁ˣ)⁻¹ mod p = ${c2} · ${inv} mod ${p} = ${m}.\n\n`;
+  explanation += `   m ≡ c₂ · (c₁ˣ)⁻¹ mod p = ${c2} · ${inv} (mod ${p}) = ${m}.\n\n`;
   explanation += `So the clear message is m = ${m}.`;
 
   return { m, explanation };
 }
 
-// Second version: two-method solution (via x and via y)
+// === Version 2: two-method solution (via x and via y) ===
 export function solveMultiplicativeElgamalTwoMethods(p, g, h, c1, c2) {
   let explanation = "";
 
@@ -72,15 +179,15 @@ export function solveMultiplicativeElgamalTwoMethods(p, g, h, c1, c2) {
   explanation += `1) Compute powers of g modulo p to recover both the secret key x and the temporary key y.\n`;
   explanation += `   We list gⁿ mod p for n = 1, 2, … until we encounter h and c₁ in the table.\n\n`;
 
-  const targetH = ((h % p) + p) % p;
-  const targetC1 = ((c1 % p) + p) % p;
+  const targetH = mod(h, p);
+  const targetC1 = mod(c1, p);
 
   let current = 1;
   let x = null;
   let y = null;
 
   for (let k = 1; k <= p - 1; k++) {
-    current = (current * g) % p;
+    current = mod(current * g, p);
     let line = `   g^${k} ≡ ${current} (mod ${p})`;
 
     if (current === targetH) {
@@ -106,39 +213,35 @@ export function solveMultiplicativeElgamalTwoMethods(p, g, h, c1, c2) {
 
   // ---------- Method 1: use the secret key x ----------
   explanation += `2) First method: use the secret key x.\n`;
-  explanation += `   From the table we have x = ${x} with gˣ ≡ h (mod p).\n`;
+  explanation += `   From the table we have x = ${x} with gˣ ≡ h (mod p).\n\n`;
 
-  const c1PowX = modPow(c1, x, p);
-  explanation += `   We compute c₁ˣ modulo p:\n`;
-  explanation += `   c₁ˣ ≡ ${c1}^${x} (mod ${p}) = ${c1PowX}.\n`;
+  explanation += `   2.1) Compute c₁ˣ modulo p using fast exponentiation:\n`;
+  const { result: c1PowX, steps: powSteps1 } = verboseModPow(c1, x, p);
+  explanation += powSteps1;
 
-  const invC1PowX = modInverse(c1PowX, p);
-  explanation += `   Then we compute its inverse (c₁ˣ)⁻¹ modulo p using the extended Euclidean algorithm:\n`;
-  explanation += `   (c₁ˣ)⁻¹ ≡ ${invC1PowX} (mod ${p}).\n`;
+  explanation += `   2.2) Compute the inverse (c₁ˣ)⁻¹ modulo p using the extended Euclidean algorithm:\n`;
+  const { inverse: invC1PowX, steps: invSteps1 } = verboseModInverse(c1PowX, p);
+  explanation += invSteps1;
 
-  let m1 = (c2 * invC1PowX) % p;
-  if (m1 < 0) m1 += p;
-
-  explanation += `   Finally we decrypt with this method:\n`;
-  explanation += `   m ≡ c₂ · (c₁ˣ)⁻¹ mod p = ${c2} · ${invC1PowX} (mod ${p}) = ${m1}.\n\n`;
+  let m1 = mod(c2 * invC1PowX, p);
+  explanation += `   2.3) Decrypt with this method:\n`;
+  explanation += `        m ≡ c₂ · (c₁ˣ)⁻¹ mod p = ${c2} · ${invC1PowX} (mod ${p}) = ${m1}.\n\n`;
 
   // ---------- Method 2: use the temporary key y ----------
   explanation += `3) Second method: use the temporary key y.\n`;
-  explanation += `   From the table we have y = ${y} with gʸ ≡ c₁ (mod p).\n`;
+  explanation += `   From the table we have y = ${y} with gʸ ≡ c₁ (mod p).\n\n`;
 
-  const hPowY = modPow(h, y, p);
-  explanation += `   We compute hʸ modulo p:\n`;
-  explanation += `   hʸ ≡ ${h}^${y} (mod ${p}) = ${hPowY}.\n`;
+  explanation += `   3.1) Compute hʸ modulo p using fast exponentiation:\n`;
+  const { result: hPowY, steps: powSteps2 } = verboseModPow(h, y, p);
+  explanation += powSteps2;
 
-  const invHPowY = modInverse(hPowY, p);
-  explanation += `   Then we compute the inverse (hʸ)⁻¹ modulo p:\n`;
-  explanation += `   (hʸ)⁻¹ ≡ ${invHPowY} (mod ${p}).\n`;
+  explanation += `   3.2) Compute the inverse (hʸ)⁻¹ modulo p using the extended Euclidean algorithm:\n`;
+  const { inverse: invHPowY, steps: invSteps2 } = verboseModInverse(hPowY, p);
+  explanation += invSteps2;
 
-  let m2 = (c2 * invHPowY) % p;
-  if (m2 < 0) m2 += p;
-
-  explanation += `   Decryption with this method gives:\n`;
-  explanation += `   m ≡ c₂ · (hʸ)⁻¹ mod p = ${c2} · ${invHPowY} (mod ${p}) = ${m2}.\n\n`;
+  let m2 = mod(c2 * invHPowY, p);
+  explanation += `   3.3) Decrypt with this method:\n`;
+  explanation += `        m ≡ c₂ · (hʸ)⁻¹ mod p = ${c2} · ${invHPowY} (mod ${p}) = ${m2}.\n\n`;
 
   explanation += `4) Comparison of the two methods.\n`;
   explanation += `   Both methods should yield the same clear message.\n`;
