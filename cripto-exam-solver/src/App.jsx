@@ -5,7 +5,8 @@ import {
   solveAdditiveElgamal,
   solveAdditiveElgamalKeys,
 } from "./utils/additiveElgamal";
-import { solveMultiplicativeElgamal } from "./utils/multiplicativeElgamal";
+import { solveMultiplicativeElgamal, solveMultiplicativeElgamalTwoMethods } from "./utils/multiplicativeElgamal";
+import { solveShamirDegree2 } from "./utils/shamir";
 
 export default function App() {
   // --- Exercise 1: RSA (ϕ / λ) ---
@@ -97,6 +98,59 @@ export default function App() {
       setMgOutput("Error: " + err.message);
     }
   }
+
+// --- NEW: Exercise 3(b): Multiplicative ElGamal (two methods) ---
+const [mg2P, setMg2P] = useState("29");
+const [mg2G, setMg2G] = useState("2");
+const [mg2H, setMg2H] = useState("24");
+const [mg2C1, setMg2C1] = useState("7");
+const [mg2C2, setMg2C2] = useState("21");
+const [mg2Output, setMg2Output] = useState("");
+
+function handleSolveMultiplicativeTwo() {
+  try {
+    const { explanation } = solveMultiplicativeElgamalTwoMethods(
+      parseInt(mg2P, 10),
+      parseInt(mg2G, 10),
+      parseInt(mg2H, 10),
+      parseInt(mg2C1, 10),
+      parseInt(mg2C2, 10)
+    );
+    setMg2Output(explanation);
+  } catch (err) {
+    setMg2Output("Error: " + err.message);
+  }
+}
+
+// --- Shamir Secret Sharing (degree 2) ---
+const [shP, setShP] = useState("29");
+
+const [shA1, setShA1] = useState("1");
+const [shY1, setShY1] = useState("15");
+
+const [shA2, setShA2] = useState("2");
+const [shY2, setShY2] = useState("6");
+
+const [shA3, setShA3] = useState("3");
+const [shY3, setShY3] = useState("7");
+
+const [shOutput, setShOutput] = useState("");
+
+function handleSolveShamir() {
+  try {
+    const { explanation } = solveShamirDegree2(
+      parseInt(shP, 10),
+      [
+        { alpha: parseInt(shA1, 10), value: parseInt(shY1, 10) },
+        { alpha: parseInt(shA2, 10), value: parseInt(shY2, 10) },
+        { alpha: parseInt(shA3, 10), value: parseInt(shY3, 10) },
+      ]
+    );
+    setShOutput(explanation);
+  } catch (err) {
+    setShOutput("Error: " + err.message);
+  }
+}
 
   return (
     <div
@@ -428,6 +482,183 @@ export default function App() {
           {mgOutput}
         </pre>
       </section>
+
+      <hr style={{ margin: "3rem 0" }} />
+
+      <section>
+        <h2>Exercise 3(b) — Multiplicative ElGamal (two methods)</h2>
+        <p>
+          Same parameters (p, g, h, c₁, c₂) as Exercise 3, but the solution is written in the
+          style of the 23–24 model: first recover x and y from the table gⁿ mod p, then
+          decrypt using both methods and compare the results.
+        </p>
+
+        <div style={{ display: "grid", gap: "0.75rem", maxWidth: "360px" }}>
+          <label>
+            p (prime modulus):
+            <input
+              type="number"
+              value={mg2P}
+              onChange={(e) => setMg2P(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <label>
+            g (generator):
+            <input
+              type="number"
+              value={mg2G}
+              onChange={(e) => setMg2G(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <label>
+            h (public key):
+            <input
+              type="number"
+              value={mg2H}
+              onChange={(e) => setMg2H(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <label>
+            c₁:
+            <input
+              type="number"
+              value={mg2C1}
+              onChange={(e) => setMg2C1(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <label>
+            c₂:
+            <input
+              type="number"
+              value={mg2C2}
+              onChange={(e) => setMg2C2(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <button onClick={handleSolveMultiplicativeTwo} style={{ marginTop: "0.5rem" }}>
+            Solve Exercise 3(b) (two methods)
+          </button>
+        </div>
+
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            color: "#333",
+            background: "#f0f0f0",
+            marginTop: "1.5rem",
+            padding: "1rem",
+            borderRadius: "8px",
+            fontFamily: "monospace",
+          }}
+        >
+          {mg2Output}
+        </pre>
+      </section>
+
+      <hr style={{ margin: "3rem 0" }} />
+
+      <section>
+        <h2>Exercise 4 — Shamir Secret Sharing (degree 2)</h2>
+        <p>
+          Shamir Secret Sharing over ℤₚ with a quadratic polynomial P(x) = s + a x + b x².
+          Enter p and three pairs (α, P(α)); the app reconstructs s = P(0) in the style of
+          the solution in the model.
+        </p>
+
+        <div style={{ display: "grid", gap: "0.75rem", maxWidth: "360px" }}>
+          <label>
+            p (prime modulus):
+            <input
+              type="number"
+              value={shP}
+              onChange={(e) => setShP(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <label>
+            (α₁, P(α₁)):
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="number"
+                value={shA1}
+                onChange={(e) => setShA1(e.target.value)}
+                style={{ width: "100%" }}
+              />
+              <input
+                type="number"
+                value={shY1}
+                onChange={(e) => setShY1(e.target.value)}
+                style={{ width: "100%" }}
+              />
+            </div>
+          </label>
+
+          <label>
+            (α₂, P(α₂)):
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="number"
+                value={shA2}
+                onChange={(e) => setShA2(e.target.value)}
+                style={{ width: "100%" }}
+              />
+              <input
+                type="number"
+                value={shY2}
+                onChange={(e) => setShY2(e.target.value)}
+                style={{ width: "100%" }}
+              />
+            </div>
+          </label>
+
+          <label>
+            (α₃, P(α₃)):
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <input
+                type="number"
+                value={shA3}
+                onChange={(e) => setShA3(e.target.value)}
+                style={{ width: "100%" }}
+              />
+              <input
+                type="number"
+                value={shY3}
+                onChange={(e) => setShY3(e.target.value)}
+                style={{ width: "100%" }}
+              />
+            </div>
+          </label>
+
+          <button onClick={handleSolveShamir} style={{ marginTop: "0.5rem" }}>
+            Solve Exercise 4 (Shamir)
+          </button>
+        </div>
+
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            color: "#333",
+            background: "#f0f0f0",
+            marginTop: "1.5rem",
+            padding: "1rem",
+            borderRadius: "8px",
+            fontFamily: "monospace",
+          }}
+        >
+          {shOutput}
+        </pre>
+      </section>
+
     </div>
   );
 }
