@@ -7,6 +7,7 @@ import {
 } from "./utils/additiveElgamal";
 import { solveMultiplicativeElgamal, solveMultiplicativeElgamalTwoMethods } from "./utils/multiplicativeElgamal";
 import { solveShamirDegree2 } from "./utils/shamir";
+import { solveCipolla } from "./utils/cipolla";
 
 export default function App() {
   // --- Exercise 1: RSA (ϕ / λ) ---
@@ -149,6 +150,27 @@ function handleSolveShamir() {
     setShOutput(explanation);
   } catch (err) {
     setShOutput("Error: " + err.message);
+  }
+}
+
+// --- Cipolla ---
+const [ciP, setCiP] = useState("23");          // prime modulus
+const [ciN, setCiN] = useState("3");           // number to test as square
+const [ciA, setCiA] = useState("1");           // Cipolla parameter a
+const [ciT, setCiT] = useState("7");           // number to extract sqrt of
+const [ciOutput, setCiOutput] = useState("");
+
+function handleSolveCipolla() {
+  try {
+    const { explanation } = solveCipolla(
+      parseInt(ciP, 10),
+      parseInt(ciN, 10),
+      parseInt(ciA, 10),
+      parseInt(ciT, 10)
+    );
+    setCiOutput(explanation);
+  } catch (err) {
+    setCiOutput("Error: " + err.message);
   }
 }
 
@@ -656,6 +678,76 @@ function handleSolveShamir() {
           }}
         >
           {shOutput}
+        </pre>
+      </section>
+
+      <hr style={{ margin: "3rem 0" }} />
+
+      <section>
+        <h2>Exercise 5 — Cipolla’s Algorithm</h2>
+        <p>
+          We check whether n is a square mod p, verify that d = a² − n is a non-square,
+          then compute square roots of t via Cipolla’s algorithm in ℤₚ[√d].
+        </p>
+
+        <div style={{ display: "grid", gap: "0.75rem", maxWidth: "360px" }}>
+          <label>
+            p (prime modulus, e.g. 23):
+            <input
+              type="number"
+              value={ciP}
+              onChange={(e) => setCiP(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <label>
+            n (test if square, e.g. 3):
+            <input
+              type="number"
+              value={ciN}
+              onChange={(e) => setCiN(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <label>
+            a (Cipolla parameter, must satisfy a² − n non-square, e.g. 1):
+            <input
+              type="number"
+              value={ciA}
+              onChange={(e) => setCiA(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <label>
+            t (value to extract sqrt of, e.g. 7):
+            <input
+              type="number"
+              value={ciT}
+              onChange={(e) => setCiT(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </label>
+
+          <button onClick={handleSolveCipolla} style={{ marginTop: "0.5rem" }}>
+            Solve Exercise 5 (Cipolla)
+          </button>
+        </div>
+
+        <pre
+          style={{
+            whiteSpace: "pre-wrap",
+            color: "#333",
+            background: "#f0f0f0",
+            marginTop: "1.5rem",
+            padding: "1rem",
+            borderRadius: "8px",
+            fontFamily: "monospace",
+          }}
+        >
+          {ciOutput}
         </pre>
       </section>
 
